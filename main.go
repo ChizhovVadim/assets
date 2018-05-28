@@ -111,12 +111,21 @@ func main() {
 				date = time.Now()
 			}
 
-			report, err := ndflReportService.BuildTaxFreeReport(account, date)
+			report, err := ndflReportService.BuildPlannedTaxReport(account, date)
 			if err != nil {
 				return err
 			}
-			reports.PrintTaxFreeReport(report)
+			reports.PrintPlannedTaxReport(report)
 			return nil
+		},
+		"import": func(ctx CliContext) error {
+			importTradeService := dal.NewImportTradeService(securityInfoStorage)
+			tt, err := importTradeService.LoadTrades(path.Join(homeDir, "src.txt"))
+			if err != nil {
+				return err
+			}
+			importTradeStorage := dal.NewMyTradeStorage(path.Join(homeDir, "dst.txt"))
+			return importTradeStorage.Update(tt)
 		},
 	}
 	var ctx = parseFlags()

@@ -49,6 +49,7 @@ type SecurityInfo struct {
 
 type MyTradeStorage interface {
 	Read(account string) ([]MyTrade, error)
+	Update(trades []MyTrade) error
 }
 
 type MyDividendStorage interface {

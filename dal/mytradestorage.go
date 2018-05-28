@@ -11,6 +11,11 @@ import (
 	"github.com/ChizhovVadim/assets/core"
 )
 
+const (
+	myTradeStorageDateTimeLayout = "2006-01-02T15:04:05"
+	myTradeStorageDateLayout     = "2006-01-02"
+)
+
 type myTradeStorage struct {
 	path string
 }
@@ -47,16 +52,43 @@ func (srv *myTradeStorage) Read(account string) ([]core.MyTrade, error) {
 	return result, nil
 }
 
+func (srv *myTradeStorage) Update(trades []core.MyTrade) error {
+	file, err := os.Create(srv.path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	writer := csv.NewWriter(file)
+	for _, t := range trades {
+		rec := []string{
+			t.SecurityCode,
+			t.DateTime.Format(myTradeStorageDateTimeLayout),
+			t.ExecutionDate.Format(myTradeStorageDateLayout),
+			strconv.FormatFloat(t.Price, 'g', -1, 64),
+			strconv.Itoa(t.Volume),
+			strconv.FormatFloat(t.ExchangeComission, 'g', -1, 64),
+			strconv.FormatFloat(t.BrokerComission, 'g', -1, 64),
+			t.Account,
+		}
+		err = writer.Write(rec)
+		if err != nil {
+			return err
+		}
+	}
+	writer.Flush()
+	return writer.Error()
+}
+
 func parseMyTrade(record []string) (core.MyTrade, error) {
 	if len(record) < 8 {
 		return core.MyTrade{}, fmt.Errorf("parseMyTrade len %v", record)
 	}
 	securityCode := record[0]
-	d, err := time.Parse("2006-01-02T15:04:05", record[1])
+	d, err := time.Parse(myTradeStorageDateTimeLayout, record[1])
 	if err != nil {
 		return core.MyTrade{}, err
 	}
-	execDate, err := time.Parse("2006-01-02", record[2])
+	execDate, err := time.Parse(myTradeStorageDateLayout, record[2])
 	if err != nil {
 		return core.MyTrade{}, err
 	}

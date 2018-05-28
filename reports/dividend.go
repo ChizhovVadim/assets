@@ -28,11 +28,10 @@ func NewDividendReportService(
 }
 
 type DividendReport struct {
-	Year          int
-	Account       string
-	Items         []DividendItem
-	TotalExpected float64
-	TotalReceived float64
+	Year      int
+	Account   string
+	Items     []DividendItem
+	ToReceive float64
 }
 
 type DividendItem struct {
@@ -81,12 +80,10 @@ func (srv *DividendReportService) BuildDividendReport(year int,
 		if d.ReceivedDividend != nil {
 			item.PaymentDate = d.ReceivedDividend.Date
 			item.Payment = d.ReceivedDividend.Sum
+		} else {
+			report.ToReceive += item.Expected
 		}
 		report.Items = append(report.Items, item)
-	}
-	for _, item := range report.Items {
-		report.TotalExpected += item.Expected
-		report.TotalReceived += item.Payment
 	}
 	return report, nil
 }
@@ -104,9 +101,9 @@ func calculateShares(tt []core.MyTrade, date time.Time, securityCode, account st
 }
 
 func calculateExpectedDividend(rate float64, shares int, date time.Time) float64 {
-	var sum = math.Round(rate * float64(shares) * 100)
-	var ndfl = math.Round(sum * dividendTaxRate(date) / 100)
-	return sum/100 - ndfl
+	var sum = math.Round(rate*float64(shares)*100) / 100
+	var ndfl = math.Round(sum * dividendTaxRate(date))
+	return math.Round((sum-ndfl)*100) / 100
 }
 
 func dividendTaxRate(d time.Time) float64 {
@@ -129,11 +126,17 @@ func PrintDividendReport(report DividendReport) {
 			item.RecordDate.Format(dateLayout),
 			item.Rate, item.Shares, item.Expected,
 			formatZeroDate(item.PaymentDate),
-			item.Payment)
+			formatZeroFloat64(item.Payment))
 	}
 	w.Flush()
-	fmt.Printf("Ожидаемая сумма дивидендов: %v\n", report.TotalExpected)
-	fmt.Printf("Дивидендов получено: %v\n", report.TotalReceived)
+	fmt.Printf("Сумма дивидендов к получению: %v\n", report.ToReceive)
+}
+
+func formatZeroFloat64(v float64) string {
+	if v == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%v", v)
 }
 
 func formatZeroDate(d time.Time) string {

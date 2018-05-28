@@ -74,66 +74,113 @@ func (srv *NdflReportService) BuildNdflReport(year int, account string) (NdflRep
 	return report, nil
 }
 
-type TaxFreeReport struct {
-	Account     string
-	Date        time.Time
-	Items       []TaxFreeReportItem
-	TotalAmount float64
+type PlannedTaxReport struct {
+	Account         string
+	Date            time.Time
+	ItemsYear3      []PlannedTaxReportItem
+	Items           []PlannedTaxReportItem
+	TotalAmount     float64
+	TotalPnL        float64
+	TotalPlannedTax float64
 }
 
-type TaxFreeReportItem struct {
+type PlannedTaxReportItem struct {
 	SecuirtyCode string
 	Volume       int
 	Price        float64
 	Amount       float64
+	PnL          float64
 }
 
-func (srv *NdflReportService) BuildTaxFreeReport(account string, date time.Time) (TaxFreeReport, error) {
+func (srv *NdflReportService) BuildPlannedTaxReport(account string,
+	date time.Time) (PlannedTaxReport, error) {
 	var tt, err = srv.myTradeStorage.Read(account)
 	if err != nil {
-		return TaxFreeReport{}, err
+		return PlannedTaxReport{}, err
 	}
-	//TODO отдельный отчет, что можем продать без налога без 3 летней льготы
 	var openTrades, _ = splitOpenAndClosedTrades(tt)
-	var m = make(map[string]int)
-	for _, t := range openTrades {
-		if t.ExecutionDate.Year() >= 2014 &&
-			t.ExecutionDate.AddDate(3, 0, 0).Before(date) {
-			m[t.SecurityCode] += t.Volume
-		}
-	}
-	var report = TaxFreeReport{
+
+	var report = PlannedTaxReport{
 		Account: account,
 		Date:    date,
 	}
-	var total = 0.0
-	for k, v := range m {
-		var c, _ = srv.historyCandleStorage.Last(k)
-		var amount = c.C * float64(v)
-		total += amount
-		report.Items = append(report.Items, TaxFreeReportItem{
-			SecuirtyCode: k,
-			Volume:       v,
-			Price:        c.C,
-			Amount:       amount,
-		})
+	report.Items = srv.buildPlannedTaxItems(openTrades)
+	report.ItemsYear3 = srv.buildPlannedTaxItems(
+		filterTrades(openTrades, func(t core.MyTrade) bool {
+			return t.ExecutionDate.Year() >= 2014 &&
+				t.ExecutionDate.AddDate(3, 0, 0).Before(date)
+		}))
+	for _, item := range report.Items {
+		report.TotalAmount += item.Amount
+		report.TotalPnL += item.PnL
 	}
-	report.TotalAmount = total
+	report.TotalPlannedTax = computeNdfl(report.TotalPnL)
+
 	return report, nil
 }
 
-func PrintTaxFreeReport(report TaxFreeReport) {
-	fmt.Printf("Отчет по 3-летней льготе '%v' на дату %v\n",
-		report.Account, report.Date.Format("2006-01-02"))
+func filterTrades(tt []core.MyTrade,
+	condition func(core.MyTrade) bool) []core.MyTrade {
+	var result []core.MyTrade
+	for _, t := range tt {
+		if condition(t) {
+			result = append(result, t)
+		}
+	}
+	return result
+}
 
+func (srv *NdflReportService) buildPlannedTaxItems(tt []core.MyTrade) []PlannedTaxReportItem {
+	type buyItem struct {
+		securityCode string
+		volume       int
+		amount       float64
+	}
+	var m = make(map[string]*buyItem)
+	for _, t := range tt {
+		var item, found = m[t.SecurityCode]
+		if !found {
+			item = &buyItem{securityCode: t.SecurityCode}
+			m[item.securityCode] = item
+		}
+		item.volume += t.Volume
+		item.amount += float64(t.Volume) * t.Price
+	}
+	var result []PlannedTaxReportItem
+	for k, v := range m {
+		var c, _ = srv.historyCandleStorage.Last(k)
+		var amount = c.C * float64(v.volume)
+		result = append(result, PlannedTaxReportItem{
+			SecuirtyCode: k,
+			Volume:       v.volume,
+			Price:        c.C,
+			Amount:       amount,
+			PnL:          amount - v.amount,
+		})
+	}
+	return result
+}
+
+func PrintPlannedTaxReport(report PlannedTaxReport) {
+	fmt.Printf("Отчет по 3-летней льготе '%v' на дату %v\n",
+		report.Account, report.Date.Format(dateLayout))
+	printPlannedTaxItems(report.ItemsYear3)
+
+	fmt.Printf("Отчет о потенциальном НФДЛ '%v'\n", report.Account)
+	printPlannedTaxItems(report.Items)
+	fmt.Printf("Amount: %.f\n", report.TotalAmount)
+	fmt.Printf("PnL: %.f\n", report.TotalPnL)
+	fmt.Printf("Tax: %.f\n", report.TotalPlannedTax)
+}
+
+func printPlannedTaxItems(items []PlannedTaxReportItem) {
 	var w = tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', tabwriter.AlignRight)
-	fmt.Fprintf(w, "Security\tVolume\tPrice\tAmount\t\n")
-	for _, item := range report.Items {
-		fmt.Fprintf(w, "%v\t%v\t%v\t%.f\t\n",
-			item.SecuirtyCode, item.Volume, item.Price, item.Amount)
+	fmt.Fprintf(w, "Security\tVolume\tPrice\tAmount\tPnL\t\n")
+	for _, item := range items {
+		fmt.Fprintf(w, "%v\t%v\t%v\t%.f\t%.f\t\n",
+			item.SecuirtyCode, item.Volume, item.Price, item.Amount, item.PnL)
 	}
 	w.Flush()
-	fmt.Printf("ИТОГО: %.f\n", report.TotalAmount)
 }
 
 func splitOpenAndClosedTrades(tt []core.MyTrade) ([]core.MyTrade, []ClosedMyTrade) {

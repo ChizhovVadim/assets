@@ -69,7 +69,12 @@ func historyCandlesFinamUrl(securityCode int, periodCode int,
 }
 
 func getHistoryCandles(client *http.Client, url string) ([]core.HistoryCandle, error) {
-	resp, err := client.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0")
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
