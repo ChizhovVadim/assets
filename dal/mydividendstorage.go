@@ -1,6 +1,7 @@
 package dal
 
 import (
+	"strings"
 	"time"
 
 	"github.com/ChizhovVadim/assets/core"
@@ -33,7 +34,7 @@ func (srv *myDividendStorage) ReadReceivedDividends(account string,
 		var item = *item.ReceivedDividend
 		if !item.Date.Before(start) &&
 			!item.Date.After(finish) &&
-			(account == "" || item.Account == account) {
+			(account == "" || strings.EqualFold(item.Account, account)) {
 			result = append(result, item)
 		}
 	}

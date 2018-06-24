@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ChizhovVadim/assets/core"
@@ -45,7 +46,7 @@ func (srv *myTradeStorage) Read(account string) ([]core.MyTrade, error) {
 		if err != nil {
 			return nil, err
 		}
-		if account == "" || t.Account == account {
+		if account == "" || strings.EqualFold(t.Account, account) {
 			result = append(result, t)
 		}
 	}

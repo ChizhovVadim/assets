@@ -53,7 +53,14 @@ func (srv *historyCandleStorage) CandleByDate(securityCode string, date time.Tim
 }
 
 func (srv *historyCandleStorage) Last(securityCode string) (core.HistoryCandle, error) {
-	var cc, err = srv.readAll(securityCode)
+	exists, err := isPathExists(srv.fileName(securityCode))
+	if err != nil {
+		return core.HistoryCandle{}, err
+	}
+	if !exists {
+		return core.HistoryCandle{}, core.ErrNoData
+	}
+	cc, err := srv.readAll(securityCode)
 	if err != nil {
 		return core.HistoryCandle{}, err
 	}
@@ -87,6 +94,18 @@ func (srv *historyCandleStorage) readAll(securityCode string) ([]core.HistoryCan
 		result = append(result, candle)
 	}
 	return result, nil
+}
+
+func isPathExists(path string) (bool, error) {
+	_, err := os.Lstat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	// error other than not existing e.g. permission denied
+	return false, err
 }
 
 func (srv *historyCandleStorage) writeAll(securityCode, filename string, source []core.HistoryCandle) error {
@@ -135,15 +154,24 @@ func lastIndexOfHistoryCandle(source []core.HistoryCandle,
 }
 
 func (srv *historyCandleStorage) Update(securityCode string, candles []core.HistoryCandle) error {
-	var currentCandles, err = srv.readAll(securityCode)
+	var exists, err = isPathExists(srv.fileName(securityCode))
 	if err != nil {
 		return err
 	}
-	var d = date(candles[0].DateTime)
-	var index = lastIndexOfHistoryCandle(currentCandles, func(c core.HistoryCandle) bool {
-		return date(c.DateTime).Before(d)
-	})
-	currentCandles = append(currentCandles[:index+1], candles...)
+	var currentCandles []core.HistoryCandle
+	if !exists {
+		currentCandles = candles
+	} else {
+		currentCandles, err = srv.readAll(securityCode)
+		if err != nil {
+			return err
+		}
+		var d = date(candles[0].DateTime)
+		var index = lastIndexOfHistoryCandle(currentCandles, func(c core.HistoryCandle) bool {
+			return date(c.DateTime).Before(d)
+		})
+		currentCandles = append(currentCandles[:index+1], candles...)
+	}
 	//TODO write to temp file first?
 	return srv.writeAll(securityCode, srv.fileName(securityCode), currentCandles)
 }

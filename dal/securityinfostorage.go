@@ -8,35 +8,22 @@ import (
 )
 
 type securityInfoStorage struct {
-	items map[string]core.SecurityInfo
+	path string
 }
 
 func NewSecurityInfoStorage(path string) *securityInfoStorage {
-	var items, _ = load(path)
-	if items == nil {
-		items = make(map[string]core.SecurityInfo)
-	}
-	return &securityInfoStorage{items}
+	return &securityInfoStorage{path}
 }
 
-func (srv *securityInfoStorage) Read(securityCode string) (core.SecurityInfo, bool) {
-	var item, found = srv.items[securityCode]
-	return item, found
-}
-
-func load(path string) (map[string]core.SecurityInfo, error) {
+func (srv *securityInfoStorage) ReadAll() ([]core.SecurityInfo, error) {
 	var obj = struct {
 		Items []core.SecurityInfo `xml:"SecurityInfo"`
 	}{}
-	var err = decodeXmlFile(path, &obj)
+	var err = decodeXmlFile(srv.path, &obj)
 	if err != nil {
 		return nil, err
 	}
-	var result = make(map[string]core.SecurityInfo)
-	for _, item := range obj.Items {
-		result[item.SecurityCode] = item
-	}
-	return result, nil
+	return obj.Items, nil
 }
 
 func decodeXmlFile(filePath string, v interface{}) error {
@@ -46,4 +33,24 @@ func decodeXmlFile(filePath string, v interface{}) error {
 	}
 	defer file.Close()
 	return xml.NewDecoder(file).Decode(v)
+}
+
+type securityInfoDirectory struct {
+	items map[string]core.SecurityInfo
+}
+
+func NewSecurityInfoDirectory(securityInfoStorage core.SecurityInfoStorage) *securityInfoDirectory {
+	var items = make(map[string]core.SecurityInfo)
+	var ss, err = securityInfoStorage.ReadAll()
+	if err == nil {
+		for _, s := range ss {
+			items[s.SecurityCode] = s
+		}
+	}
+	return &securityInfoDirectory{items}
+}
+
+func (srv *securityInfoDirectory) Read(securityCode string) (core.SecurityInfo, bool) {
+	var item, found = srv.items[securityCode]
+	return item, found
 }

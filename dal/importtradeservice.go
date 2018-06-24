@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ChizhovVadim/assets/core"
@@ -28,7 +29,7 @@ func (srv *importTradeService) LoadTrades(fileName string) ([]core.MyTrade, erro
 	}
 	defer file.Close()
 	reader := csv.NewReader(file)
-	reader.Read() // skip fst line
+	reader.Read() //TODO param
 	var result []core.MyTrade
 	for {
 		rec, err := reader.Read()
@@ -49,12 +50,12 @@ func (srv *importTradeService) LoadTrades(fileName string) ([]core.MyTrade, erro
 
 func parseMyTradeSberbank(line []string) (core.MyTrade, error) {
 	const (
-		DateTimeLayout = "2006-01-02 15:04:05"
+		DateTimeLayout = "02.01.2006 15:04:05"
 	)
 	if len(line) <= 18 {
 		return core.MyTrade{}, fmt.Errorf("failed parseMyTradeSberbank %v", line)
 	}
-	account := line[0]
+	account := line[0] //TODO param
 	date, err := time.Parse(DateTimeLayout, line[4])
 	if err != nil {
 		return core.MyTrade{}, err
@@ -98,6 +99,21 @@ func parseMyTradeSberbank(line []string) (core.MyTrade, error) {
 	}, nil
 }
 
+var securities = []struct {
+	name string
+	key  string
+}{
+	{"Мобильные ТелеСистемы", "MTSS"},
+	{"FINEX GOLD", "FXGD"},
+	{"Магнит", "MGNT"},
+	{"ИНТЕР РАО", "IRAO"},
+}
+
 func parseSecurityCodeSberbank(securityName string) (string, error) {
-	return "", core.ErrNotImplemented
+	for _, s := range securities {
+		if strings.Contains(securityName, s.name) {
+			return s.key, nil
+		}
+	}
+	return "", fmt.Errorf("security not found %v", securityName)
 }

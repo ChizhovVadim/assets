@@ -19,19 +19,22 @@ const (
 )
 
 type historyCandleProvider struct {
-	securityInfoStorage core.SecurityInfoStorage
+	securityInfoDirectory core.SecurityInfoDirectory
 }
 
-func NewHistoryCandleProvider(securityInfoStorage core.SecurityInfoStorage) *historyCandleProvider {
-	return &historyCandleProvider{securityInfoStorage}
+func NewHistoryCandleProvider(securityInfoDirectory core.SecurityInfoDirectory) *historyCandleProvider {
+	return &historyCandleProvider{securityInfoDirectory}
 }
 
 func (srv *historyCandleProvider) Load(security string,
 	beginDate, endDate time.Time) ([]core.HistoryCandle, error) {
 
-	var secInfo, found = srv.securityInfoStorage.Read(security)
+	var secInfo, found = srv.securityInfoDirectory.Read(security)
 	if !found {
 		return nil, fmt.Errorf("securityCode not found %v", security)
+	}
+	if secInfo.FinamCode == 0 {
+		return nil, fmt.Errorf("finam code not found %v", security)
 	}
 	var url, err = historyCandlesFinamUrl(secInfo.FinamCode, finamPeriodDay, beginDate, endDate)
 	if err != nil {

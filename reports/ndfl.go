@@ -3,27 +3,25 @@ package reports
 import (
 	"fmt"
 	"math"
-	"os"
-	"text/tabwriter"
 	"time"
 
 	"github.com/ChizhovVadim/assets/core"
 )
 
 type NdflReportService struct {
-	myTradeStorage       core.MyTradeStorage
-	historyCandleStorage core.HistoryCandleStorage
-	securityInfoStorage  core.SecurityInfoStorage
+	myTradeStorage        core.MyTradeStorage
+	historyCandleStorage  core.HistoryCandleStorage
+	securityInfoDirectory core.SecurityInfoDirectory
 }
 
 func NewNdflReportService(
 	myTradeStorage core.MyTradeStorage,
 	historyCandleStorage core.HistoryCandleStorage,
-	securityInfoStorage core.SecurityInfoStorage) *NdflReportService {
+	securityInfoDirectory core.SecurityInfoDirectory) *NdflReportService {
 	return &NdflReportService{
-		myTradeStorage:       myTradeStorage,
-		historyCandleStorage: historyCandleStorage,
-		securityInfoStorage:  securityInfoStorage,
+		myTradeStorage:        myTradeStorage,
+		historyCandleStorage:  historyCandleStorage,
+		securityInfoDirectory: securityInfoDirectory,
 	}
 }
 
@@ -174,7 +172,7 @@ func PrintPlannedTaxReport(report PlannedTaxReport) {
 }
 
 func printPlannedTaxItems(items []PlannedTaxReportItem) {
-	var w = tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', tabwriter.AlignRight)
+	var w = newTabWriter()
 	fmt.Fprintf(w, "Security\tVolume\tPrice\tAmount\tPnL\t\n")
 	for _, item := range items {
 		fmt.Fprintf(w, "%v\t%v\t%v\t%.f\t%.f\t\n",
@@ -279,4 +277,16 @@ func PrintNdflReport(report NdflReport) {
 	fmt.Printf("Доход: %.f\n", report.TotalPnL)
 	fmt.Printf("НДФЛ: %.f\n", report.Ndfl)
 	fmt.Printf("НДФЛ с 3 летней льготой: %.f\n", report.NdflWithDeduction)
+	printClosedTrades(report.Trades)
+}
+
+func printClosedTrades(tt []ClosedMyTrade) {
+	var w = newTabWriter()
+	fmt.Fprintf(w, "Security\tOpenDate\tOpenPrice\tCloseDate\tClosePrice\tVolume\t\n")
+	for _, t := range tt {
+		fmt.Fprintf(w, "%v\t%v\t%v\t%v\t%v\t%v\t\n",
+			t.SecurityCode, t.OpenDate.Format(dateLayout), t.OpenPrice,
+			t.CloseDate.Format(dateLayout), t.ClosePrice, t.Volume)
+	}
+	w.Flush()
 }

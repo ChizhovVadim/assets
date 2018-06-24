@@ -23,6 +23,31 @@ var tickers = []string{
 	"TATNP", "AFKS",
 }
 
+var etfTickers = []string{
+	"FXUS",
+	"FXDE",
+	"FXUK",
+	"FXMM",
+	"FXRU",
+	"FXRB",
+	"FXGD",
+	"iFXIT",
+	"FXJP",
+	"FXAU",
+	"FXCN",
+	"FXRL",
+}
+
+func getTickersByType(securityType string) []string {
+	switch securityType {
+	case "", "stock":
+		return tickers
+	case "etf":
+		return etfTickers
+	}
+	return nil
+}
+
 type CliContext struct {
 	CommandName string
 	Flags       map[string]string
@@ -44,19 +69,23 @@ func main() {
 
 	assetsDir := path.Join(homeDir, "Projects/Assets/Assets/Content")
 	securityInfoStorage := dal.NewSecurityInfoStorage(path.Join(assetsDir, "StockSettings.xml"))
+	securityInfoDirectory := dal.NewSecurityInfoDirectory(securityInfoStorage)
 	myTradeStorage := dal.NewMyTradeStorage(path.Join(assetsDir, "trades.csv"))
 	myDividendStorage := dal.NewMyDividendStorage(path.Join(assetsDir, "Dividends.xml"))
 	historyCandleStorage := dal.NewHistoryCandleStorage(path.Join(homeDir, "TradingData/Portfolio"))
 
 	historyCandleService := dal.NewHistoryCandleService(historyCandleStorage,
-		dal.NewHistoryCandleProvider(securityInfoStorage))
-	periodReportService := reports.NewPeriodReportService(myTradeStorage, historyCandleStorage, securityInfoStorage, myDividendStorage)
-	dividendReportService := reports.NewDividendReportService(myTradeStorage, securityInfoStorage, myDividendStorage)
-	ndflReportService := reports.NewNdflReportService(myTradeStorage, historyCandleStorage, securityInfoStorage)
+		dal.NewHistoryCandleProvider(securityInfoDirectory))
+	periodReportService := reports.NewPeriodReportService(myTradeStorage, historyCandleStorage, securityInfoDirectory, myDividendStorage)
+	dividendReportService := reports.NewDividendReportService(myTradeStorage, securityInfoDirectory, myDividendStorage)
+	ndflReportService := reports.NewNdflReportService(myTradeStorage, historyCandleStorage, securityInfoDirectory)
+
+	quoteReportService := reports.NewQuoteReportService(historyCandleStorage, securityInfoDirectory)
 
 	var commands = map[string]func(ctx CliContext) error{
 		"update": func(ctx CliContext) error {
-			return historyCandleService.UpdateHistoryCandles(tickers)
+			securityCodes := getTickersByType(ctx.Flags["type"])
+			return historyCandleService.UpdateHistoryCandles(securityCodes)
 		},
 		"period": func(ctx CliContext) error {
 			account := ctx.Flags["account"]
@@ -126,6 +155,24 @@ func main() {
 			}
 			importTradeStorage := dal.NewMyTradeStorage(path.Join(homeDir, "dst.txt"))
 			return importTradeStorage.Update(tt)
+		},
+		"quote": func(ctx CliContext) error {
+			start, err := time.Parse(dateLayout, ctx.Flags["start"])
+			if err != nil {
+				start = firstDayOfYear(time.Now())
+			}
+			finish, err := time.Parse(dateLayout, ctx.Flags["finish"])
+			if err != nil {
+				finish = time.Now()
+			}
+			securityCodes := getTickersByType(ctx.Flags["type"])
+
+			report, err := quoteReportService.BuildQuoteReport(start, finish, securityCodes)
+			if err != nil {
+				return err
+			}
+			reports.PrintQuoteReport(report)
+			return nil
 		},
 	}
 	var ctx = parseFlags()

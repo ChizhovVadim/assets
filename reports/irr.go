@@ -2,7 +2,6 @@ package reports
 
 import (
 	"math"
-	"sort"
 	"time"
 )
 
@@ -45,9 +44,13 @@ func calculatePeriodSums(cashflows []DateSum) []periodSum {
 	for k, v := range m {
 		result = append(result, periodSum{float64(k) / 365.25, v})
 	}
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].period < result[j].period
-	})
+	var maxIndex = 0
+	for i, item := range result {
+		if item.Sum > result[maxIndex].Sum {
+			maxIndex = i
+		}
+	}
+	result[maxIndex], result[len(result)-1] = result[len(result)-1], result[maxIndex]
 	return result
 }
 

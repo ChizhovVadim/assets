@@ -3,27 +3,25 @@ package reports
 import (
 	"fmt"
 	"math"
-	"os"
-	"text/tabwriter"
 	"time"
 
 	"github.com/ChizhovVadim/assets/core"
 )
 
 type DividendReportService struct {
-	myTradeStorage      core.MyTradeStorage
-	securityInfoStorage core.SecurityInfoStorage
-	myDividendStorage   core.MyDividendStorage
+	myTradeStorage        core.MyTradeStorage
+	securityInfoDirectory core.SecurityInfoDirectory
+	myDividendStorage     core.MyDividendStorage
 }
 
 func NewDividendReportService(
 	myTradeStorage core.MyTradeStorage,
-	securityInfoStorage core.SecurityInfoStorage,
+	securityInfoDirectory core.SecurityInfoDirectory,
 	myDividendStorage core.MyDividendStorage) *DividendReportService {
 	return &DividendReportService{
-		myTradeStorage:      myTradeStorage,
-		securityInfoStorage: securityInfoStorage,
-		myDividendStorage:   myDividendStorage,
+		myTradeStorage:        myTradeStorage,
+		securityInfoDirectory: securityInfoDirectory,
+		myDividendStorage:     myDividendStorage,
 	}
 }
 
@@ -67,7 +65,7 @@ func (srv *DividendReportService) BuildDividendReport(year int,
 			continue
 		}
 		var security = d.SecurityCode
-		if si, found := srv.securityInfoStorage.Read(d.SecurityCode); found {
+		if si, found := srv.securityInfoDirectory.Read(d.SecurityCode); found {
 			security = si.Title
 		}
 		var item = DividendItem{
@@ -118,7 +116,7 @@ func PrintDividendReport(report DividendReport) {
 		report.Account,
 		report.Year)
 
-	var w = tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', tabwriter.AlignRight)
+	var w = newTabWriter()
 	fmt.Fprintf(w, "Security\tRecord\tRate\tShares\tExpected\tDate\tPayment\t\n")
 	for _, item := range report.Items {
 		fmt.Fprintf(w, "%v\t%v\t%v\t%v\t%v\t%v\t%v\t\n",
@@ -129,7 +127,7 @@ func PrintDividendReport(report DividendReport) {
 			formatZeroFloat64(item.Payment))
 	}
 	w.Flush()
-	fmt.Printf("Сумма дивидендов к получению: %v\n", report.ToReceive)
+	fmt.Printf("Сумма дивидендов к получению: %.f\n", report.ToReceive)
 }
 
 func formatZeroFloat64(v float64) string {

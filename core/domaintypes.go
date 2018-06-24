@@ -65,5 +65,9 @@ type HistoryCandleStorage interface {
 }
 
 type SecurityInfoStorage interface {
+	ReadAll() ([]SecurityInfo, error)
+}
+
+type SecurityInfoDirectory interface {
 	Read(securityCode string) (SecurityInfo, bool)
 }

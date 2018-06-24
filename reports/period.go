@@ -13,22 +13,22 @@ import (
 )
 
 type PeriodReportService struct {
-	myTradeStorage       core.MyTradeStorage
-	historyCandleStorage core.HistoryCandleStorage
-	securityInfoStorage  core.SecurityInfoStorage
-	myDividendStorage    core.MyDividendStorage
+	myTradeStorage        core.MyTradeStorage
+	historyCandleStorage  core.HistoryCandleStorage
+	securityInfoDirectory core.SecurityInfoDirectory
+	myDividendStorage     core.MyDividendStorage
 }
 
 func NewPeriodReportService(
 	myTradeStorage core.MyTradeStorage,
 	historyCandleStorage core.HistoryCandleStorage,
-	securityInfoStorage core.SecurityInfoStorage,
+	securityInfoDirectory core.SecurityInfoDirectory,
 	myDividendStorage core.MyDividendStorage) *PeriodReportService {
 	return &PeriodReportService{
-		myTradeStorage:       myTradeStorage,
-		historyCandleStorage: historyCandleStorage,
-		securityInfoStorage:  securityInfoStorage,
-		myDividendStorage:    myDividendStorage,
+		myTradeStorage:        myTradeStorage,
+		historyCandleStorage:  historyCandleStorage,
+		securityInfoDirectory: securityInfoDirectory,
+		myDividendStorage:     myDividendStorage,
 	}
 }
 
@@ -119,7 +119,7 @@ func (srv *PeriodReportService) BuildPeriodReport(start, finish time.Time,
 				v.AmountFinish = v.PriceFinish * float64(v.VolumeFinish)
 			}
 			v.AmountChange = v.AmountFinish - v.AmountStart - (v.AmountBuy - v.AmountSell)
-			if info, found := srv.securityInfoStorage.Read(v.SecurityCode); found {
+			if info, found := srv.securityInfoDirectory.Read(v.SecurityCode); found {
 				v.Title = info.Title
 			} else {
 				v.Title = v.SecurityCode
@@ -184,7 +184,7 @@ func PrintPeriodReport(report PeriodReport) {
 	fmt.Printf("Доход: %.f\n", report.PnL)
 	fmt.Printf("Доходность: %.1f%%\n", (report.Irr-1)*100)
 
-	var w = tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', tabwriter.AlignRight)
+	var w = newTabWriter()
 	fmt.Fprintf(w, "Security\tW1\tP1\tV0\tV+\tV-\tV1\tT1\t\n")
 	for _, item := range report.Items {
 		fmt.Fprintf(w, "%v\t%.1f\t%v\t%v\t%v\t%v\t%v\t%.f\t\n",
@@ -200,4 +200,8 @@ func formatZeroInt(v int) string {
 		return ""
 	}
 	return strconv.Itoa(v)
+}
+
+func newTabWriter() *tabwriter.Writer {
+	return tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', tabwriter.AlignRight)
 }
