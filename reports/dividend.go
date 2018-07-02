@@ -64,10 +64,7 @@ func (srv *DividendReportService) BuildDividendReport(year int,
 		if shares == 0 {
 			continue
 		}
-		var security = d.SecurityCode
-		if si, found := srv.securityInfoDirectory.Read(d.SecurityCode); found {
-			security = si.Title
-		}
+		var security = securityTitle(d.SecurityCode, srv.securityInfoDirectory)
 		var item = DividendItem{
 			Security:   security,
 			RecordDate: d.RecordDate,

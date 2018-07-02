@@ -119,11 +119,7 @@ func (srv *PeriodReportService) BuildPeriodReport(start, finish time.Time,
 				v.AmountFinish = v.PriceFinish * float64(v.VolumeFinish)
 			}
 			v.AmountChange = v.AmountFinish - v.AmountStart - (v.AmountBuy - v.AmountSell)
-			if info, found := srv.securityInfoDirectory.Read(v.SecurityCode); found {
-				v.Title = info.Title
-			} else {
-				v.Title = v.SecurityCode
-			}
+			v.Title = securityTitle(v.SecurityCode, srv.securityInfoDirectory)
 			items = append(items, *v)
 		}
 	}
@@ -164,6 +160,15 @@ func (srv *PeriodReportService) BuildPeriodReport(start, finish time.Time,
 	}
 
 	return r, nil
+}
+
+func securityTitle(securityCode string,
+	securityInfoDirectory core.SecurityInfoDirectory) string {
+	info, found := securityInfoDirectory.Read(securityCode)
+	if !found || info.Title == "" {
+		return securityCode
+	}
+	return info.Title
 }
 
 const dateLayout = "2006-01-02"

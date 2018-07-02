@@ -8,26 +8,25 @@ import (
 )
 
 type myDividendStorage struct {
-	items []core.DividendSchedule
-	err   error
+	path string
 }
 
 func NewMyDividendStorage(path string) *myDividendStorage {
-	items, err := loadMyDividends(path)
-	return &myDividendStorage{items, err}
+	return &myDividendStorage{path}
 }
 
 func (srv *myDividendStorage) Read() ([]core.DividendSchedule, error) {
-	return srv.items, srv.err
+	return loadMyDividends(srv.path)
 }
 
 func (srv *myDividendStorage) ReadReceivedDividends(account string,
 	start, finish time.Time) ([]core.ReceivedDividend, error) {
-	if srv.err != nil {
-		return nil, srv.err
+	items, err := loadMyDividends(srv.path)
+	if err != nil {
+		return nil, err
 	}
 	var result []core.ReceivedDividend
-	for _, item := range srv.items {
+	for _, item := range items {
 		if item.ReceivedDividend == nil {
 			continue
 		}

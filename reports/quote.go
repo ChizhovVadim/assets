@@ -2,6 +2,7 @@ package reports
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"time"
 
@@ -38,20 +39,22 @@ type QuoteItem struct {
 
 func (srv *QuoteReportService) BuildQuoteReport(start, finish time.Time,
 	securityCodes []string) (QuoteReport, error) {
+	var years = yearsBetween(start, finish)
 	var items []QuoteItem
 	for _, securityCode := range securityCodes {
 		priceStart, _ := srv.historyCandleStorage.CandleBeforeDate(securityCode, start)
 		priceFinish, _ := srv.historyCandleStorage.CandleByDate(securityCode, finish)
-		title := securityCode
-		if si, found := srv.securityInfoDirectory.Read(securityCode); found {
-			title = si.Title
+		title := securityTitle(securityCode, srv.securityInfoDirectory)
+		change := priceFinish.C / priceStart.C
+		if years > 1 {
+			change = math.Pow(change, 1.0/years)
 		}
 		items = append(items, QuoteItem{
 			SecurityCode: securityCode,
 			Title:        title,
 			PriceStart:   priceStart.C,
 			PriceFinish:  priceFinish.C,
-			Change:       priceFinish.C / priceStart.C,
+			Change:       change,
 		})
 	}
 	sort.Slice(items, func(i, j int) bool {

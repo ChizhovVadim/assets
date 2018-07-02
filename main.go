@@ -20,7 +20,7 @@ var tickers = []string{
 	"MTSS", "ALRS", "CHMF", "MOEX", "HYDR", "PHOR",
 	"NLMK", "SNGS", "IRAO", "MAGN", "PLZL", "TATN", "VTBR",
 	//Прочие
-	"TATNP", "AFKS",
+	"TATNP",
 }
 
 var etfTickers = []string{
@@ -84,7 +84,7 @@ func main() {
 
 	var commands = map[string]func(ctx CliContext) error{
 		"update": func(ctx CliContext) error {
-			securityCodes := getTickersByType(ctx.Flags["type"])
+			securityCodes := append(tickers, etfTickers...)
 			return historyCandleService.UpdateHistoryCandles(securityCodes)
 		},
 		"period": func(ctx CliContext) error {

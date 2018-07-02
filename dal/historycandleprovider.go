@@ -20,30 +20,33 @@ const (
 
 type historyCandleProvider struct {
 	securityInfoDirectory core.SecurityInfoDirectory
+	client                *http.Client
 }
 
 func NewHistoryCandleProvider(securityInfoDirectory core.SecurityInfoDirectory) *historyCandleProvider {
-	return &historyCandleProvider{securityInfoDirectory}
+	return &historyCandleProvider{
+		securityInfoDirectory: securityInfoDirectory,
+		client: &http.Client{
+			Timeout: 25 * time.Second,
+		},
+	}
 }
 
-func (srv *historyCandleProvider) Load(security string,
+func (srv *historyCandleProvider) Load(securityCode string,
 	beginDate, endDate time.Time) ([]core.HistoryCandle, error) {
 
-	var secInfo, found = srv.securityInfoDirectory.Read(security)
+	var secInfo, found = srv.securityInfoDirectory.Read(securityCode)
 	if !found {
-		return nil, fmt.Errorf("securityCode not found %v", security)
+		return nil, fmt.Errorf("securityCode not found %v", securityCode)
 	}
 	if secInfo.FinamCode == 0 {
-		return nil, fmt.Errorf("finam code not found %v", security)
+		return nil, fmt.Errorf("finam code not found %v", securityCode)
 	}
 	var url, err = historyCandlesFinamUrl(secInfo.FinamCode, finamPeriodDay, beginDate, endDate)
 	if err != nil {
 		return nil, err
 	}
-	client := &http.Client{
-		Timeout: 25 * time.Second,
-	}
-	return getHistoryCandles(client, url)
+	return srv.getHistoryCandles(url)
 }
 
 func historyCandlesFinamUrl(securityCode int, periodCode int,
@@ -71,13 +74,13 @@ func historyCandlesFinamUrl(securityCode int, periodCode int,
 	return baseUrl.String(), nil
 }
 
-func getHistoryCandles(client *http.Client, url string) ([]core.HistoryCandle, error) {
+func (srv *historyCandleProvider) getHistoryCandles(url string) ([]core.HistoryCandle, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0")
-	resp, err := client.Do(req)
+	resp, err := srv.client.Do(req)
 	if err != nil {
 		return nil, err
 	}

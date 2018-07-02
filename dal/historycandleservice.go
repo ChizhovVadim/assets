@@ -8,7 +8,7 @@ import (
 )
 
 type HistoryCandleProvider interface {
-	Load(security string, beginDate, endDate time.Time) ([]core.HistoryCandle, error)
+	Load(securityCode string, beginDate, endDate time.Time) ([]core.HistoryCandle, error)
 }
 
 type historyCandleService struct {
