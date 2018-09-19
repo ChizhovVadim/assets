@@ -13,9 +13,7 @@ import (
 )
 
 const (
-	finamPeriodMinutes1 = 2
-	finamPeriodMinutes5 = 3
-	finamPeriodDay      = 8
+	finamPeriodDay = 8
 )
 
 type historyCandleProvider struct {
@@ -75,12 +73,7 @@ func historyCandlesFinamUrl(securityCode int, periodCode int,
 }
 
 func (srv *historyCandleProvider) getHistoryCandles(url string) ([]core.HistoryCandle, error) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0")
-	resp, err := srv.client.Do(req)
+	resp, err := srv.client.Get(url)
 	if err != nil {
 		return nil, err
 	}

@@ -13,15 +13,8 @@ import (
 	"github.com/ChizhovVadim/assets/reports"
 )
 
-var tickers = []string{
-	"MICEXINDEXCF",
-	//MSCI Russia
-	"GAZP", "LKOH", "SBER", "MGNT", "GMKN", "NVTK", "ROSN", "SNGSP",
-	"MTSS", "ALRS", "CHMF", "MOEX", "HYDR", "PHOR",
-	"NLMK", "SNGS", "IRAO", "MAGN", "PLZL", "TATN", "VTBR",
-	//Прочие
-	"TATNP",
-}
+const micexIndex = "MICEXINDEXCF"
+const MOEXRussiaTotalReturnIndex = "MCFTR"
 
 var etfTickers = []string{
 	"FXUS",
@@ -38,10 +31,13 @@ var etfTickers = []string{
 	"FXRL",
 }
 
-func getTickersByType(securityType string) []string {
+func getTickersByType(periodReportService *reports.PeriodReportService,
+	securityType string) []string {
 	switch securityType {
-	case "", "stock":
-		return tickers
+	case "":
+		securityCodes, _ := periodReportService.GetHoldingTickers()
+		securityCodes = append(securityCodes, micexIndex)
+		return securityCodes
 	case "etf":
 		return etfTickers
 	}
@@ -84,7 +80,7 @@ func main() {
 
 	var commands = map[string]func(ctx CliContext) error{
 		"update": func(ctx CliContext) error {
-			securityCodes := append(tickers, etfTickers...)
+			securityCodes := getTickersByType(periodReportService, ctx.Flags["type"])
 			return historyCandleService.UpdateHistoryCandles(securityCodes)
 		},
 		"period": func(ctx CliContext) error {
@@ -95,7 +91,8 @@ func main() {
 			}
 			finish, err := time.Parse(dateLayout, ctx.Flags["finish"])
 			if err != nil {
-				finish = time.Now()
+				//finish = time.Now()
+				finish = today()
 			}
 
 			report, err := periodReportService.BuildPeriodReport(start, finish, account)
@@ -148,7 +145,7 @@ func main() {
 			return nil
 		},
 		"import": func(ctx CliContext) error {
-			importTradeService := dal.NewImportTradeService(securityInfoStorage)
+			importTradeService := dal.NewSberbankImportTradeService()
 			tt, err := importTradeService.LoadTrades(path.Join(homeDir, "src.txt"))
 			if err != nil {
 				return err
@@ -165,7 +162,7 @@ func main() {
 			if err != nil {
 				finish = time.Now()
 			}
-			securityCodes := getTickersByType(ctx.Flags["type"])
+			securityCodes := getTickersByType(periodReportService, ctx.Flags["type"])
 
 			report, err := quoteReportService.BuildQuoteReport(start, finish, securityCodes)
 			if err != nil {
@@ -208,4 +205,9 @@ func parseFlags() CliContext {
 
 func firstDayOfYear(d time.Time) time.Time {
 	return time.Date(d.Year(), 1, 1, 0, 0, 0, 0, d.Location())
+}
+
+func today() time.Time {
+	y, m, d := time.Now().Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, &time.Location{})
 }

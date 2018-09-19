@@ -12,17 +12,13 @@ import (
 	"github.com/ChizhovVadim/assets/core"
 )
 
-type importTradeService struct {
-	securityInfoStorage core.SecurityInfoStorage
+type sberbankImportTradeService struct{}
+
+func NewSberbankImportTradeService() *sberbankImportTradeService {
+	return &sberbankImportTradeService{}
 }
 
-func NewImportTradeService(securityInfoStorage core.SecurityInfoStorage) *importTradeService {
-	return &importTradeService{
-		securityInfoStorage: securityInfoStorage,
-	}
-}
-
-func (srv *importTradeService) LoadTrades(fileName string) ([]core.MyTrade, error) {
+func (srv *sberbankImportTradeService) LoadTrades(fileName string) ([]core.MyTrade, error) {
 	file, err := os.Open(fileName)
 	if err != nil {
 		return nil, err
@@ -50,7 +46,7 @@ func (srv *importTradeService) LoadTrades(fileName string) ([]core.MyTrade, erro
 
 func parseMyTradeSberbank(line []string) (core.MyTrade, error) {
 	const (
-		DateTimeLayout = "02.01.2006 15:04:05"
+		DateTimeLayout = "02/01/2006 15:04"
 	)
 	if len(line) <= 18 {
 		return core.MyTrade{}, fmt.Errorf("failed parseMyTradeSberbank %v", line)
@@ -103,10 +99,23 @@ var securities = []struct {
 	name string
 	key  string
 }{
-	{"Мобильные ТелеСистемы", "MTSS"},
 	{"FINEX GOLD", "FXGD"},
-	{"Магнит", "MGNT"},
+	{"FinEx Cash Equivalents", "FXMM"},
+	{"Мобильные ТелеСистемы", "MTSS"},
+	{"Магнитогорский металлургический комбинат", "MAGN"},
+	{"Норильский никель", "GMKN"},
 	{"ИНТЕР РАО", "IRAO"},
+	{"Магнит", "MGNT"},
+	{"Роснефть", "ROSN"},
+	{"АЛРОСА", "ALRS"},
+	{"ФоcАгро", "PHOR"},
+	{"Полюс", "PLZL"},
+	{"Федеральная сетевая компания", "FEES"},
+	{"Аэрофлот", "AFLT"},
+	{"Сбербанк", "SBER"},
+	{"Система", "AFKS"},
+	{"СУРГУТНЕФТЕГАЗ", "SNGSP"},
+	{"Межрегиональная распределительная сетевая компания Волги", "MRKV"},
 }
 
 func parseSecurityCodeSberbank(securityName string) (string, error) {

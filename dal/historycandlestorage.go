@@ -208,7 +208,7 @@ func parseHistoryCandle(record []string) (candle core.HistoryCandle, err error) 
 	if err != nil {
 		return
 	}
-	candle = core.HistoryCandle{d, o, h, l, c, v}
+	candle = core.HistoryCandle{DateTime: d, O: o, H: h, L: l, C: c, V: v}
 	return
 }
 

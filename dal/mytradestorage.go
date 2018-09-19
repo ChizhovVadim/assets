@@ -110,5 +110,14 @@ func parseMyTrade(record []string) (core.MyTrade, error) {
 		return core.MyTrade{}, err
 	}
 	account := record[7]
-	return core.MyTrade{securityCode, d, execDate, price, volume, exCom, brCom, account}, nil
+	return core.MyTrade{
+		SecurityCode:      securityCode,
+		DateTime:          d,
+		ExecutionDate:     execDate,
+		Price:             price,
+		Volume:            volume,
+		ExchangeComission: exCom,
+		BrokerComission:   brCom,
+		Account:           account,
+	}, nil
 }

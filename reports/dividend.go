@@ -3,6 +3,7 @@ package reports
 import (
 	"fmt"
 	"math"
+	"sort"
 	"time"
 
 	"github.com/ChizhovVadim/assets/core"
@@ -80,6 +81,9 @@ func (srv *DividendReportService) BuildDividendReport(year int,
 		}
 		report.Items = append(report.Items, item)
 	}
+	sort.Slice(report.Items, func(i, j int) bool {
+		return report.Items[i].RecordDate.Before(report.Items[j].RecordDate)
+	})
 	return report, nil
 }
 

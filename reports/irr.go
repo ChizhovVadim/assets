@@ -34,15 +34,16 @@ func InternalRateOfReturn(cashflows []DateSum) float64 {
 }
 
 func calculatePeriodSums(cashflows []DateSum) []periodSum {
-	var startDate = date(minDateOfDateSums(cashflows))
-	var m = make(map[int]float64)
+	var max, min = maxAndMinDateOfDateSums(cashflows)
+	var step = yearsBetween(min, max) / 20
+	var m = make(map[float64]float64)
 	for _, c := range cashflows {
-		var period = daysBetween(startDate, date(c.Date))
+		var period = round(yearsBetween(min, c.Date), step)
 		m[period] += c.Sum
 	}
 	var result []periodSum
 	for k, v := range m {
-		result = append(result, periodSum{float64(k) / 365.25, v})
+		result = append(result, periodSum{k, v})
 	}
 	var maxIndex = 0
 	for i, item := range result {
@@ -54,16 +55,20 @@ func calculatePeriodSums(cashflows []DateSum) []periodSum {
 	return result
 }
 
-func minDateOfDateSums(cashflows []DateSum) time.Time {
-	var result = cashflows[0].Date
+func maxAndMinDateOfDateSums(cashflows []DateSum) (max, min time.Time) {
+	max = cashflows[0].Date
+	min = max
 	for _, item := range cashflows[1:] {
-		if item.Date.Before(result) {
-			result = item.Date
+		if item.Date.Before(min) {
+			min = item.Date
+		}
+		if item.Date.After(max) {
+			max = item.Date
 		}
 	}
-	return result
+	return max, min
 }
 
-func daysBetween(start, finish time.Time) int {
-	return int(finish.Sub(start) / (24 * time.Hour))
+func round(x, unit float64) float64 {
+	return math.Round(x/unit) * unit
 }

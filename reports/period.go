@@ -32,6 +32,12 @@ func NewPeriodReportService(
 	}
 }
 
+type PeriodReportParams struct {
+	Start   time.Time
+	Finish  time.Time
+	Account string
+}
+
 type PeriodReport struct {
 	Start        time.Time
 	Finish       time.Time
@@ -46,6 +52,7 @@ type PeriodReport struct {
 	Comissions   float64
 	PnL          float64
 	Irr          float64
+	Benchmark    float64
 }
 
 type PeriodItem struct {
@@ -75,6 +82,7 @@ func (srv *PeriodReportService) BuildPeriodReport(start, finish time.Time,
 	var m = make(map[string]*PeriodItem)
 	var cashflows []DateSum
 	for _, t := range tt {
+		//TODO compare date parts only?
 		if t.ExecutionDate.After(finish) {
 			continue
 		}
@@ -124,7 +132,10 @@ func (srv *PeriodReportService) BuildPeriodReport(start, finish time.Time,
 		}
 	}
 	sort.Slice(items, func(i, j int) bool {
-		return items[i].Title < items[j].Title
+		if items[i].VolumeFinish == 0 && items[j].VolumeFinish == 0 {
+			return items[i].Title < items[j].Title
+		}
+		return items[i].AmountFinish > items[j].AmountFinish
 	})
 	var r = PeriodReport{
 		Start:   start,
@@ -158,8 +169,20 @@ func (srv *PeriodReportService) BuildPeriodReport(start, finish time.Time,
 	if years := yearsBetween(start, finish); years < 1 {
 		r.Irr = math.Pow(r.Irr, years)
 	}
+	r.Benchmark = srv.calculateBenchmark(start, finish)
 
 	return r, nil
+}
+
+func (srv *PeriodReportService) calculateBenchmark(start, finish time.Time) float64 {
+	const ticker = "MICEXINDEXCF"
+	q0, _ := srv.historyCandleStorage.CandleBeforeDate(ticker, start)
+	q1, _ := srv.historyCandleStorage.CandleByDate(ticker, finish)
+	change := q1.C / q0.C
+	if years := yearsBetween(start, finish); years > 1 {
+		change = math.Pow(change, 1.0/years)
+	}
+	return change
 }
 
 func securityTitle(securityCode string,
@@ -188,6 +211,7 @@ func PrintPeriodReport(report PeriodReport) {
 	fmt.Printf("Комиссия: %.f\n", report.Comissions)
 	fmt.Printf("Доход: %.f\n", report.PnL)
 	fmt.Printf("Доходность: %.1f%%\n", (report.Irr-1)*100)
+	fmt.Printf("Доходность индекса: %.1f%%\n", (report.Benchmark-1)*100)
 
 	var w = newTabWriter()
 	fmt.Fprintf(w, "Security\tW1\tP1\tV0\tV+\tV-\tV1\tT1\t\n")
@@ -209,4 +233,22 @@ func formatZeroInt(v int) string {
 
 func newTabWriter() *tabwriter.Writer {
 	return tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', tabwriter.AlignRight)
+}
+
+func (srv *PeriodReportService) GetHoldingTickers() ([]string, error) {
+	var tt, err = srv.myTradeStorage.Read("")
+	if err != nil {
+		return nil, err
+	}
+	var m = make(map[string]int)
+	for _, t := range tt {
+		m[t.SecurityCode] += t.Volume
+	}
+	var result []string
+	for k, v := range m {
+		if v != 0 {
+			result = append(result, k)
+		}
+	}
+	return result, nil
 }

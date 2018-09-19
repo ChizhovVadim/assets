@@ -29,7 +29,7 @@ type NdflReport struct {
 	Year              int
 	Account           string
 	Trades            []ClosedMyTrade
-	TotalPnL          float64
+	PnLTotal          float64
 	Ndfl              float64
 	NdflWithDeduction float64
 }
@@ -57,15 +57,15 @@ func (srv *NdflReportService) BuildNdflReport(year int, account string) (NdflRep
 	}
 	var _, closedTrades = splitOpenAndClosedTrades(tt)
 	closedTrades = filterClosedTrades(closedTrades, year)
-	var totalPnL = totalPnL(closedTrades)
-	var ndlf = computeNdfl(totalPnL)
+	var pnLTotal = totalPnL(closedTrades)
+	var ndlf = computeNdfl(pnLTotal)
 	var pnlDeduction = computePnLDeduction(closedTrades)
-	var ndflDeduction = computeNdfl(totalPnL - pnlDeduction)
+	var ndflDeduction = computeNdfl(pnLTotal - pnlDeduction)
 	var report = NdflReport{
 		Year:              year,
 		Account:           account,
 		Trades:            closedTrades,
-		TotalPnL:          totalPnL,
+		PnLTotal:          pnLTotal,
 		Ndfl:              ndlf,
 		NdflWithDeduction: ndflDeduction,
 	}
@@ -75,11 +75,12 @@ func (srv *NdflReportService) BuildNdflReport(year int, account string) (NdflRep
 type PlannedTaxReport struct {
 	Account         string
 	Date            time.Time
+	OpenTrades      []core.MyTrade
 	ItemsYear3      []PlannedTaxReportItem
 	Items           []PlannedTaxReportItem
-	TotalAmount     float64
-	TotalPnL        float64
-	TotalPlannedTax float64
+	AmountTotal     float64
+	PnLTotal        float64
+	PlannedTaxTotal float64
 }
 
 type PlannedTaxReportItem struct {
@@ -99,8 +100,9 @@ func (srv *NdflReportService) BuildPlannedTaxReport(account string,
 	var openTrades, _ = splitOpenAndClosedTrades(tt)
 
 	var report = PlannedTaxReport{
-		Account: account,
-		Date:    date,
+		Account:    account,
+		Date:       date,
+		OpenTrades: openTrades,
 	}
 	report.Items = srv.buildPlannedTaxItems(openTrades)
 	report.ItemsYear3 = srv.buildPlannedTaxItems(
@@ -109,10 +111,10 @@ func (srv *NdflReportService) BuildPlannedTaxReport(account string,
 				t.ExecutionDate.AddDate(3, 0, 0).Before(date)
 		}))
 	for _, item := range report.Items {
-		report.TotalAmount += item.Amount
-		report.TotalPnL += item.PnL
+		report.AmountTotal += item.Amount
+		report.PnLTotal += item.PnL
 	}
-	report.TotalPlannedTax = computeNdfl(report.TotalPnL)
+	report.PlannedTaxTotal = computeNdfl(report.PnLTotal)
 
 	return report, nil
 }
@@ -166,9 +168,11 @@ func PrintPlannedTaxReport(report PlannedTaxReport) {
 
 	fmt.Printf("Отчет о потенциальном НФДЛ '%v'\n", report.Account)
 	printPlannedTaxItems(report.Items)
-	fmt.Printf("Amount: %.f\n", report.TotalAmount)
-	fmt.Printf("PnL: %.f\n", report.TotalPnL)
-	fmt.Printf("Tax: %.f\n", report.TotalPlannedTax)
+	fmt.Printf("Amount: %.f\n", report.AmountTotal)
+	fmt.Printf("PnL: %.f\n", report.PnLTotal)
+	fmt.Printf("Tax: %.f\n", report.PlannedTaxTotal)
+	fmt.Println("Незакрытые сделки")
+	printTrades(report.OpenTrades)
 }
 
 func printPlannedTaxItems(items []PlannedTaxReportItem) {
@@ -261,6 +265,7 @@ func computePnLDeduction(closedTrades []ClosedMyTrade) float64 {
 		return 0
 	}
 	//TODO Учесть макс размер вычета
+	// http://www.consultant.ru/document/cons_doc_LAW_28165/2b69106f66601ba5b58aaeb82395674581c66c20/#dst9545
 	return sum
 }
 
@@ -274,10 +279,20 @@ func computeNdfl(pnl float64) float64 {
 func PrintNdflReport(report NdflReport) {
 	fmt.Printf("Отчет '%v' НДФЛ за %v год\n",
 		report.Account, report.Year)
-	fmt.Printf("Доход: %.f\n", report.TotalPnL)
+	fmt.Printf("Доход: %.f\n", report.PnLTotal)
 	fmt.Printf("НДФЛ: %.f\n", report.Ndfl)
 	fmt.Printf("НДФЛ с 3 летней льготой: %.f\n", report.NdflWithDeduction)
 	printClosedTrades(report.Trades)
+}
+
+func printTrades(tt []core.MyTrade) {
+	var w = newTabWriter()
+	fmt.Fprintf(w, "Security\tDate\tPrice\tVolume\t\n")
+	for _, t := range tt {
+		fmt.Fprintf(w, "%v\t%v\t%v\t%v\t\n",
+			t.SecurityCode, t.ExecutionDate.Format(dateLayout), t.Price, t.Volume)
+	}
+	w.Flush()
 }
 
 func printClosedTrades(tt []ClosedMyTrade) {
