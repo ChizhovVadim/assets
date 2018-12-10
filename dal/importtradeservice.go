@@ -99,23 +99,12 @@ var securities = []struct {
 	name string
 	key  string
 }{
-	{"FINEX GOLD", "FXGD"},
+	{"FINEX GOLD ETF", "FXGD"},
+	{"FinEx MSCI Germany", "FXDE"},
+	{"FXUS ETF", "FXUS"},
+	{"FXJP ETF", "FXJP"},
+	{"FXUK ETF", "FXUK"},
 	{"FinEx Cash Equivalents", "FXMM"},
-	{"Мобильные ТелеСистемы", "MTSS"},
-	{"Магнитогорский металлургический комбинат", "MAGN"},
-	{"Норильский никель", "GMKN"},
-	{"ИНТЕР РАО", "IRAO"},
-	{"Магнит", "MGNT"},
-	{"Роснефть", "ROSN"},
-	{"АЛРОСА", "ALRS"},
-	{"ФоcАгро", "PHOR"},
-	{"Полюс", "PLZL"},
-	{"Федеральная сетевая компания", "FEES"},
-	{"Аэрофлот", "AFLT"},
-	{"Сбербанк", "SBER"},
-	{"Система", "AFKS"},
-	{"СУРГУТНЕФТЕГАЗ", "SNGSP"},
-	{"Межрегиональная распределительная сетевая компания Волги", "MRKV"},
 }
 
 func parseSecurityCodeSberbank(securityName string) (string, error) {

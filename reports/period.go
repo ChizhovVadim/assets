@@ -32,12 +32,6 @@ func NewPeriodReportService(
 	}
 }
 
-type PeriodReportParams struct {
-	Start   time.Time
-	Finish  time.Time
-	Account string
-}
-
 type PeriodReport struct {
 	Start        time.Time
 	Finish       time.Time
@@ -73,17 +67,28 @@ type PeriodItem struct {
 	Comissions   float64
 }
 
-func (srv *PeriodReportService) BuildPeriodReport(start, finish time.Time,
-	account string) (PeriodReport, error) {
-	var tt, err = srv.myTradeStorage.Read(account)
+type PeriodReportRequest struct {
+	Start    time.Time
+	Finish   time.Time
+	Account  string
+	Brief    bool
+	Currency string
+}
+
+func (srv *PeriodReportService) BuildPeriodReport(r PeriodReportRequest) (PeriodReport, error) {
+	var tt, err = srv.myTradeStorage.Read(r.Account)
 	if err != nil {
 		return PeriodReport{}, err
+	}
+	var curConv = &currencyConverter{
+		codeTo:               r.Currency,
+		historyCandleStorage: srv.historyCandleStorage,
 	}
 	var m = make(map[string]*PeriodItem)
 	var cashflows []DateSum
 	for _, t := range tt {
 		//TODO compare date parts only?
-		if t.ExecutionDate.After(finish) {
+		if t.ExecutionDate.After(r.Finish) {
 			continue
 		}
 		var item, found = m[t.SecurityCode]
@@ -91,20 +96,20 @@ func (srv *PeriodReportService) BuildPeriodReport(start, finish time.Time,
 			item = &PeriodItem{SecurityCode: t.SecurityCode}
 			m[t.SecurityCode] = item
 		}
-		if t.ExecutionDate.Before(start) {
+		if t.ExecutionDate.Before(r.Start) {
 			item.VolumeStart += t.Volume
 			item.VolumeFinish += t.Volume
 		} else {
 			item.VolumeFinish += t.Volume
-			item.Comissions += t.BrokerComission + t.ExchangeComission
+			item.Comissions += curConv.Convert(t.ExecutionDate, t.BrokerComission+t.ExchangeComission)
 			if t.Volume > 0 {
 				item.VolumeBuy += t.Volume
-				var amount = float64(t.Volume) * t.Price
+				var amount = curConv.Convert(t.ExecutionDate, float64(t.Volume)*t.Price)
 				item.AmountBuy += amount
 				cashflows = append(cashflows, DateSum{t.ExecutionDate, -amount})
 			} else {
 				item.VolumeSell -= t.Volume
-				var amount = float64(-t.Volume) * t.Price
+				var amount = curConv.Convert(t.ExecutionDate, float64(-t.Volume)*t.Price)
 				item.AmountSell += amount
 				cashflows = append(cashflows, DateSum{t.ExecutionDate, amount})
 			}
@@ -117,14 +122,14 @@ func (srv *PeriodReportService) BuildPeriodReport(start, finish time.Time,
 			v.VolumeBuy != 0 ||
 			v.VolumeSell != 0 {
 			if v.VolumeStart != 0 {
-				c0, _ := srv.historyCandleStorage.CandleBeforeDate(v.SecurityCode, start)
+				c0, _ := srv.historyCandleStorage.CandleBeforeDate(v.SecurityCode, r.Start)
 				v.PriceStart = c0.C
-				v.AmountStart = v.PriceStart * float64(v.VolumeStart)
+				v.AmountStart = curConv.Convert(r.Start, v.PriceStart*float64(v.VolumeStart))
 			}
 			if v.VolumeFinish != 0 {
-				c1, _ := srv.historyCandleStorage.CandleByDate(v.SecurityCode, finish)
+				c1, _ := srv.historyCandleStorage.CandleByDate(v.SecurityCode, r.Finish)
 				v.PriceFinish = c1.C
-				v.AmountFinish = v.PriceFinish * float64(v.VolumeFinish)
+				v.AmountFinish = curConv.Convert(r.Finish, v.PriceFinish*float64(v.VolumeFinish))
 			}
 			v.AmountChange = v.AmountFinish - v.AmountStart - (v.AmountBuy - v.AmountSell)
 			v.Title = securityTitle(v.SecurityCode, srv.securityInfoDirectory)
@@ -137,41 +142,50 @@ func (srv *PeriodReportService) BuildPeriodReport(start, finish time.Time,
 		}
 		return items[i].AmountFinish > items[j].AmountFinish
 	})
-	var r = PeriodReport{
-		Start:   start,
-		Finish:  finish,
-		Account: account,
+	var result = PeriodReport{
+		Start:   r.Start,
+		Finish:  r.Finish,
+		Account: r.Account,
 		Items:   items,
 	}
 	for _, item := range items {
-		r.AmountStart += item.AmountStart
-		r.AmountBuy += item.AmountBuy
-		r.AmountSell += item.AmountSell
-		r.AmountFinish += item.AmountFinish
-		r.Comissions += item.Comissions
+		result.AmountStart += item.AmountStart
+		result.AmountBuy += item.AmountBuy
+		result.AmountSell += item.AmountSell
+		result.AmountFinish += item.AmountFinish
+		result.Comissions += item.Comissions
 	}
 	for i := range items {
-		items[i].Weight = items[i].AmountFinish / r.AmountFinish
+		items[i].Weight = items[i].AmountFinish / result.AmountFinish
 	}
-	cashflows = append(cashflows, DateSum{start, -r.AmountStart})
-	cashflows = append(cashflows, DateSum{finish, r.AmountFinish})
-	dd, err := srv.myDividendStorage.ReadReceivedDividends(account, start, finish)
+	cashflows = append(cashflows, DateSum{r.Start, -result.AmountStart})
+	cashflows = append(cashflows, DateSum{r.Finish, result.AmountFinish})
+	dd, err := srv.myDividendStorage.ReadReceivedDividends(r.Account, r.Start, r.Finish)
 	if err != nil {
 		return PeriodReport{}, err
 	}
 	for _, d := range dd {
-		r.Dividends += d.Sum
-		cashflows = append(cashflows, DateSum{d.Date, d.Sum})
+		var dividend = curConv.Convert(d.Date, d.Sum)
+		result.Dividends += dividend
+		cashflows = append(cashflows, DateSum{d.Date, dividend})
 	}
-	r.AmountChange = r.AmountFinish - r.AmountStart - (r.AmountBuy - r.AmountSell)
-	r.PnL = r.AmountChange + r.Dividends - r.Comissions
-	r.Irr = InternalRateOfReturn(cashflows)
-	if years := yearsBetween(start, finish); years < 1 {
-		r.Irr = math.Pow(r.Irr, years)
+	result.AmountChange = result.AmountFinish - result.AmountStart - (result.AmountBuy - result.AmountSell)
+	result.PnL = result.AmountChange + result.Dividends - result.Comissions
+	result.Irr = InternalRateOfReturn(cashflows)
+	if years := yearsBetween(r.Start, r.Finish); years < 1 {
+		result.Irr = math.Pow(result.Irr, years)
 	}
-	r.Benchmark = srv.calculateBenchmark(start, finish)
-
-	return r, nil
+	result.Benchmark = srv.calculateBenchmark(r.Start, r.Finish)
+	if r.Brief {
+		var briefItems []PeriodItem
+		for _, item := range items {
+			if item.VolumeFinish != 0 {
+				briefItems = append(briefItems, item)
+			}
+		}
+		result.Items = briefItems
+	}
+	return result, nil
 }
 
 func (srv *PeriodReportService) calculateBenchmark(start, finish time.Time) float64 {

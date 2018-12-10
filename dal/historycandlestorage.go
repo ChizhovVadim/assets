@@ -24,6 +24,10 @@ func (srv *historyCandleStorage) fileName(securityCode string) string {
 	return filepath.Join(srv.historyCandlesFolder, securityCode+".txt")
 }
 
+func (srv *historyCandleStorage) Read(securityCode string) ([]core.HistoryCandle, error) {
+	return srv.readAll(securityCode)
+}
+
 func (srv *historyCandleStorage) CandleBeforeDate(securityCode string, date time.Time) (core.HistoryCandle, error) {
 	var cc, err = srv.readAll(securityCode)
 	if err != nil {

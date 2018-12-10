@@ -58,6 +58,7 @@ type MyDividendStorage interface {
 }
 
 type HistoryCandleStorage interface {
+	Read(securityCode string) ([]HistoryCandle, error)
 	CandleBeforeDate(securityCode string, date time.Time) (HistoryCandle, error)
 	CandleByDate(securityCode string, date time.Time) (HistoryCandle, error)
 	Last(securityCode string) (HistoryCandle, error)

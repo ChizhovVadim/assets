@@ -23,6 +23,13 @@ func NewQuoteReportService(
 	}
 }
 
+type QuoteReportRequest struct {
+	Start         time.Time
+	Finish        time.Time
+	SecurityCodes []string
+	Currency      string
+}
+
 type QuoteReport struct {
 	Start  time.Time
 	Finish time.Time
@@ -37,15 +44,18 @@ type QuoteItem struct {
 	Change       float64
 }
 
-func (srv *QuoteReportService) BuildQuoteReport(start, finish time.Time,
-	securityCodes []string) (QuoteReport, error) {
-	var years = yearsBetween(start, finish)
+func (srv *QuoteReportService) BuildQuoteReport(r QuoteReportRequest) (QuoteReport, error) {
+	var curConv = &currencyConverter{
+		codeTo:               r.Currency,
+		historyCandleStorage: srv.historyCandleStorage,
+	}
+	var years = yearsBetween(r.Start, r.Finish)
 	var items []QuoteItem
-	for _, securityCode := range securityCodes {
-		priceStart, _ := srv.historyCandleStorage.CandleBeforeDate(securityCode, start)
-		priceFinish, _ := srv.historyCandleStorage.CandleByDate(securityCode, finish)
+	for _, securityCode := range r.SecurityCodes {
+		priceStart, _ := srv.historyCandleStorage.CandleBeforeDate(securityCode, r.Start)
+		priceFinish, _ := srv.historyCandleStorage.CandleByDate(securityCode, r.Finish)
 		title := securityTitle(securityCode, srv.securityInfoDirectory)
-		change := priceFinish.C / priceStart.C
+		change := curConv.Convert(r.Finish, priceFinish.C) / curConv.Convert(r.Start, priceStart.C)
 		if years > 1 {
 			change = math.Pow(change, 1.0/years)
 		}
@@ -61,8 +71,8 @@ func (srv *QuoteReportService) BuildQuoteReport(start, finish time.Time,
 		return items[i].Change > items[j].Change
 	})
 	var report = QuoteReport{
-		Start:  start,
-		Finish: finish,
+		Start:  r.Start,
+		Finish: r.Finish,
 		Items:  items,
 	}
 	return report, nil

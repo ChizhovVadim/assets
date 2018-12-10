@@ -15,6 +15,7 @@ import (
 
 const micexIndex = "MICEXINDEXCF"
 const MOEXRussiaTotalReturnIndex = "MCFTR"
+const USDCbrf = "USDCB"
 
 var etfTickers = []string{
 	"FXUS",
@@ -31,15 +32,42 @@ var etfTickers = []string{
 	"FXRL",
 }
 
+// https://app2.msci.com/eqb/custom_indexes/russia_performance.html
+var msciRussiaTickers = []string{
+	"GAZP",
+	"LKOH",
+	"SBER",
+	"MGNT",
+	"SNGS",
+	"SNGSP",
+	"GMKN",
+	"NVTK",
+	"ROSN",
+	"MTSS",
+	"VTBR",
+	"TATN",
+	"TRNFP",
+	"ALRS",
+	"MOEX",
+	"CHMF",
+	"PHOR",
+	"IRAO",
+	"NLMK",
+	"MAGN",
+	"PLZL",
+}
+
 func getTickersByType(periodReportService *reports.PeriodReportService,
 	securityType string) []string {
 	switch securityType {
 	case "":
 		securityCodes, _ := periodReportService.GetHoldingTickers()
-		securityCodes = append(securityCodes, micexIndex)
+		securityCodes = append(securityCodes, micexIndex, USDCbrf)
 		return securityCodes
 	case "etf":
 		return etfTickers
+	case "stock":
+		return msciRussiaTickers
 	}
 	return nil
 }
@@ -84,18 +112,23 @@ func main() {
 			return historyCandleService.UpdateHistoryCandles(securityCodes)
 		},
 		"period": func(ctx CliContext) error {
-			account := ctx.Flags["account"]
+			var r = reports.PeriodReportRequest{}
+			r.Brief = true
+			r.Currency = ctx.Flags["cur"] // example: "USDCB"
+			r.Account = ctx.Flags["account"]
 			start, err := time.Parse(dateLayout, ctx.Flags["start"])
 			if err != nil {
 				start = firstDayOfYear(time.Now())
 			}
+			r.Start = start
 			finish, err := time.Parse(dateLayout, ctx.Flags["finish"])
 			if err != nil {
 				//finish = time.Now()
 				finish = today()
 			}
+			r.Finish = finish
 
-			report, err := periodReportService.BuildPeriodReport(start, finish, account)
+			report, err := periodReportService.BuildPeriodReport(r)
 			if err != nil {
 				return err
 			}
@@ -154,17 +187,21 @@ func main() {
 			return importTradeStorage.Update(tt)
 		},
 		"quote": func(ctx CliContext) error {
+			var r = reports.QuoteReportRequest{}
 			start, err := time.Parse(dateLayout, ctx.Flags["start"])
 			if err != nil {
 				start = firstDayOfYear(time.Now())
 			}
+			r.Start = start
 			finish, err := time.Parse(dateLayout, ctx.Flags["finish"])
 			if err != nil {
 				finish = time.Now()
 			}
-			securityCodes := getTickersByType(periodReportService, ctx.Flags["type"])
+			r.Finish = finish
+			r.SecurityCodes = getTickersByType(periodReportService, ctx.Flags["type"])
+			r.Currency = ctx.Flags["cur"]
 
-			report, err := quoteReportService.BuildQuoteReport(start, finish, securityCodes)
+			report, err := quoteReportService.BuildQuoteReport(r)
 			if err != nil {
 				return err
 			}
