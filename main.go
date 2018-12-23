@@ -2,84 +2,14 @@ package main
 
 import (
 	"log"
-	"os"
 	"os/user"
 	"path"
-	"strconv"
-	"strings"
-	"time"
 
 	"github.com/ChizhovVadim/assets/dal"
 	"github.com/ChizhovVadim/assets/reports"
 )
 
-const micexIndex = "MICEXINDEXCF"
-const MOEXRussiaTotalReturnIndex = "MCFTR"
-const USDCbrf = "USDCB"
-
-var etfTickers = []string{
-	"FXUS",
-	"FXDE",
-	"FXUK",
-	"FXMM",
-	"FXRU",
-	"FXRB",
-	"FXGD",
-	"iFXIT",
-	"FXJP",
-	"FXAU",
-	"FXCN",
-	"FXRL",
-}
-
-// https://app2.msci.com/eqb/custom_indexes/russia_performance.html
-var msciRussiaTickers = []string{
-	"GAZP",
-	"LKOH",
-	"SBER",
-	"MGNT",
-	"SNGS",
-	"SNGSP",
-	"GMKN",
-	"NVTK",
-	"ROSN",
-	"MTSS",
-	"VTBR",
-	"TATN",
-	"TRNFP",
-	"ALRS",
-	"MOEX",
-	"CHMF",
-	"PHOR",
-	"IRAO",
-	"NLMK",
-	"MAGN",
-	"PLZL",
-}
-
-func getTickersByType(periodReportService *reports.PeriodReportService,
-	securityType string) []string {
-	switch securityType {
-	case "":
-		securityCodes, _ := periodReportService.GetHoldingTickers()
-		securityCodes = append(securityCodes, micexIndex, USDCbrf)
-		return securityCodes
-	case "etf":
-		return etfTickers
-	case "stock":
-		return msciRussiaTickers
-	}
-	return nil
-}
-
-type CliContext struct {
-	CommandName string
-	Flags       map[string]string
-}
-
 func main() {
-	const dateLayout = "2006-01-02"
-
 	curUser, err := user.Current()
 	if err != nil {
 		log.Print(err)
@@ -103,148 +33,24 @@ func main() {
 	periodReportService := reports.NewPeriodReportService(myTradeStorage, historyCandleStorage, securityInfoDirectory, myDividendStorage)
 	dividendReportService := reports.NewDividendReportService(myTradeStorage, securityInfoDirectory, myDividendStorage)
 	ndflReportService := reports.NewNdflReportService(myTradeStorage, historyCandleStorage, securityInfoDirectory)
-
 	quoteReportService := reports.NewQuoteReportService(historyCandleStorage, securityInfoDirectory)
 
-	var commands = map[string]func(ctx CliContext) error{
-		"update": func(ctx CliContext) error {
-			securityCodes := getTickersByType(periodReportService, ctx.Flags["type"])
-			return historyCandleService.UpdateHistoryCandles(securityCodes)
-		},
-		"period": func(ctx CliContext) error {
-			var r = reports.PeriodReportRequest{}
-			r.Brief = true
-			r.Currency = ctx.Flags["cur"] // example: "USDCB"
-			r.Account = ctx.Flags["account"]
-			start, err := time.Parse(dateLayout, ctx.Flags["start"])
-			if err != nil {
-				start = firstDayOfYear(time.Now())
-			}
-			r.Start = start
-			finish, err := time.Parse(dateLayout, ctx.Flags["finish"])
-			if err != nil {
-				//finish = time.Now()
-				finish = today()
-			}
-			r.Finish = finish
-
-			report, err := periodReportService.BuildPeriodReport(r)
-			if err != nil {
-				return err
-			}
-			reports.PrintPeriodReport(report)
-			return nil
-		},
-		"dividend": func(ctx CliContext) error {
-			account := ctx.Flags["account"]
-			year, err := strconv.Atoi(ctx.Flags["year"])
-			if err != nil {
-				year = time.Now().Year()
-			}
-
-			report, err := dividendReportService.BuildDividendReport(year, account)
-			if err != nil {
-				return err
-			}
-			reports.PrintDividendReport(report)
-			return nil
-		},
-		"ndfl": func(ctx CliContext) error {
-			account := ctx.Flags["account"]
-			year, err := strconv.Atoi(ctx.Flags["year"])
-			if err != nil {
-				year = time.Now().Year()
-			}
-
-			report, err := ndflReportService.BuildNdflReport(year, account)
-			if err != nil {
-				return err
-			}
-			reports.PrintNdflReport(report)
-			return nil
-		},
-		"taxfree": func(ctx CliContext) error {
-			account := ctx.Flags["account"]
-			date, err := time.Parse(dateLayout, ctx.Flags["date"])
-			if err != nil {
-				date = time.Now()
-			}
-
-			report, err := ndflReportService.BuildPlannedTaxReport(account, date)
-			if err != nil {
-				return err
-			}
-			reports.PrintPlannedTaxReport(report)
-			return nil
-		},
-		"import": func(ctx CliContext) error {
-			importTradeService := dal.NewSberbankImportTradeService()
-			tt, err := importTradeService.LoadTrades(path.Join(homeDir, "src.txt"))
-			if err != nil {
-				return err
-			}
-			importTradeStorage := dal.NewMyTradeStorage(path.Join(homeDir, "dst.txt"))
-			return importTradeStorage.Update(tt)
-		},
-		"quote": func(ctx CliContext) error {
-			var r = reports.QuoteReportRequest{}
-			start, err := time.Parse(dateLayout, ctx.Flags["start"])
-			if err != nil {
-				start = firstDayOfYear(time.Now())
-			}
-			r.Start = start
-			finish, err := time.Parse(dateLayout, ctx.Flags["finish"])
-			if err != nil {
-				finish = time.Now()
-			}
-			r.Finish = finish
-			r.SecurityCodes = getTickersByType(periodReportService, ctx.Flags["type"])
-			r.Currency = ctx.Flags["cur"]
-
-			report, err := quoteReportService.BuildQuoteReport(r)
-			if err != nil {
-				return err
-			}
-			reports.PrintQuoteReport(report)
-			return nil
-		},
+	controller := &controller{
+		homeDir:               homeDir,
+		historyCandleService:  historyCandleService,
+		periodReportService:   periodReportService,
+		dividendReportService: dividendReportService,
+		ndflReportService:     ndflReportService,
+		quoteReportService:    quoteReportService,
 	}
-	var ctx = parseFlags()
-	var cmd, found = commands[ctx.CommandName]
-	if !found {
-		log.Println("Command not found.")
-		return
-	}
-	err = cmd(ctx)
-	if err != nil {
-		log.Print(err)
-	}
-}
 
-func parseFlags() CliContext {
-	var args = os.Args
-	var cmdName = ""
-	var flags = make(map[string]string)
-	for i := 1; i < len(args); i++ {
-		var arg = args[i]
-		if strings.HasPrefix(arg, "-") {
-			if i < len(args)-1 {
-				var k = strings.TrimPrefix(arg, "-")
-				var v = args[i+1]
-				flags[k] = v
-			}
-		} else if cmdName == "" {
-			cmdName = arg
-		}
-	}
-	return CliContext{cmdName, flags}
-}
-
-func firstDayOfYear(d time.Time) time.Time {
-	return time.Date(d.Year(), 1, 1, 0, 0, 0, 0, d.Location())
-}
-
-func today() time.Time {
-	y, m, d := time.Now().Date()
-	return time.Date(y, m, d, 0, 0, 0, 0, &time.Location{})
+	runCommands([]command{
+		command{"update", controller.updateHandler},
+		command{"period", controller.periodHandler},
+		command{"dividend", controller.dividendHandler},
+		command{"ndfl", controller.ndflHandler},
+		command{"taxfree", controller.taxfreeHandler},
+		command{"import", controller.importHandler},
+		command{"quote", controller.quoteHandler},
+	})
 }

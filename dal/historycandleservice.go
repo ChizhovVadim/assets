@@ -11,7 +11,7 @@ type HistoryCandleProvider interface {
 	Load(securityCode string, beginDate, endDate time.Time) ([]core.HistoryCandle, error)
 }
 
-type historyCandleService struct {
+type HistoryCandleService struct {
 	historyCandleStorage  core.HistoryCandleStorage
 	historyCandleProvider HistoryCandleProvider
 	startHistoryDate      time.Time
@@ -19,12 +19,12 @@ type historyCandleService struct {
 
 func NewHistoryCandleService(
 	historyCandleStorage core.HistoryCandleStorage,
-	historyCandleProvider HistoryCandleProvider) *historyCandleService {
+	historyCandleProvider HistoryCandleProvider) *HistoryCandleService {
 	var startHistoryDate = time.Date(2013, time.January, 1, 0, 0, 0, 0, time.Local)
-	return &historyCandleService{historyCandleStorage, historyCandleProvider, startHistoryDate}
+	return &HistoryCandleService{historyCandleStorage, historyCandleProvider, startHistoryDate}
 }
 
-func (srv *historyCandleService) UpdateHistoryCandles(securityCodes []string) error {
+func (srv *HistoryCandleService) UpdateHistoryCandles(securityCodes []string) error {
 	log.Println("Обновляем исторические котировки...")
 	for i, securityCode := range securityCodes {
 		if i > 0 {
@@ -44,7 +44,7 @@ func (srv *historyCandleService) UpdateHistoryCandles(securityCodes []string) er
 	return nil
 }
 
-func (srv *historyCandleService) UpdateHistoryCandlesBySecurityCode(securityCode string) error {
+func (srv *HistoryCandleService) UpdateHistoryCandlesBySecurityCode(securityCode string) error {
 	var startDate time.Time
 	if last, err := srv.historyCandleStorage.Last(securityCode); err != nil {
 		if err == core.ErrNoData {
